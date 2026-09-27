@@ -143,6 +143,13 @@ export const createGameSession = async (quiz: Quiz, hostId: string): Promise<str
     localStorage.setItem(`quizrush_session_${pin}`, JSON.stringify(session));
     const ch = getBroadcastChannel(pin);
     ch?.postMessage({ type: 'UPDATE', session });
+
+    // Sync to server API for other devices and incognito tabs
+    fetch(`/api/game/${pin}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session }),
+    }).catch(() => {});
   }
 
   if (isFirebaseConfigured && db) {
@@ -157,23 +164,42 @@ export const createGameSession = async (quiz: Quiz, hostId: string): Promise<str
 };
 
 export const getGameSession = async (pin: string): Promise<GameSession | null> => {
+  const cleanPin = pin.trim().toUpperCase();
+
+  // 1. Try Firestore if configured
   if (isFirebaseConfigured && db) {
     try {
-      const snap = await getDoc(doc(db, 'games', pin));
+      const snap = await getDoc(doc(db, 'games', cleanPin));
       if (snap.exists()) {
         return snap.data() as GameSession;
       }
     } catch (e) {
-      console.warn(e);
+      console.warn('Firestore getGameSession error:', e);
     }
   }
 
+  // 2. Try Local Storage
   if (typeof window !== 'undefined') {
-    const item = localStorage.getItem(`quizrush_session_${pin}`);
+    const item = localStorage.getItem(`quizrush_session_${cleanPin}`);
     if (item) {
-      return JSON.parse(item);
+      try {
+        return JSON.parse(item);
+      } catch (e) {}
     }
+
+    // 3. Try Server API fallback for cross-device joining
+    try {
+      const res = await fetch(`/api/game/${cleanPin}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.session) {
+          localStorage.setItem(`quizrush_session_${cleanPin}`, JSON.stringify(data.session));
+          return data.session;
+        }
+      }
+    } catch (e) {}
   }
+
   return null;
 };
 
@@ -183,11 +209,13 @@ export const subscribeToGame = (
 ): (() => void) => {
   if (typeof window === 'undefined') return () => {};
 
+  const cleanPin = pin.trim().toUpperCase();
   let unsubFirestore: (() => void) | null = null;
+  let pollInterval: any = null;
 
   if (isFirebaseConfigured && db) {
     try {
-      unsubFirestore = onSnapshot(doc(db, 'games', pin), (snap) => {
+      unsubFirestore = onSnapshot(doc(db, 'games', cleanPin), (snap) => {
         if (snap.exists()) {
           callback(snap.data() as GameSession);
         } else {
@@ -195,13 +223,13 @@ export const subscribeToGame = (
         }
       });
     } catch (err) {
-      console.warn('Firestore onSnapshot error, falling back to local channel:', err);
+      console.warn('Firestore onSnapshot error, falling back to local/polling:', err);
     }
   }
 
   // Local BroadcastChannel & storage event fallback
   const syncFromLocalStorage = () => {
-    const raw = localStorage.getItem(`quizrush_session_${pin}`);
+    const raw = localStorage.getItem(`quizrush_session_${cleanPin}`);
     if (raw) {
       try {
         callback(JSON.parse(raw));
@@ -213,7 +241,7 @@ export const subscribeToGame = (
 
   syncFromLocalStorage();
 
-  const ch = getBroadcastChannel(pin);
+  const ch = getBroadcastChannel(cleanPin);
   const handleMessage = (e: MessageEvent) => {
     if (e.data?.session) {
       callback(e.data.session);
@@ -225,15 +253,29 @@ export const subscribeToGame = (
   }
 
   const handleStorage = (e: StorageEvent) => {
-    if (e.key === `quizrush_session_${pin}`) {
+    if (e.key === `quizrush_session_${cleanPin}`) {
       syncFromLocalStorage();
     }
   };
   window.addEventListener('storage', handleStorage);
 
+  // Cross-device server polling fallback to sync players across devices
+  pollInterval = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/game/${cleanPin}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.session) {
+          callback(data.session);
+        }
+      }
+    } catch (err) {}
+  }, 1200);
+
   return () => {
     if (unsubFirestore) unsubFirestore();
     if (ch) ch.removeEventListener('message', handleMessage);
+    if (pollInterval) clearInterval(pollInterval);
     window.removeEventListener('storage', handleStorage);
   };
 };
@@ -242,7 +284,8 @@ export const updateGameSession = async (
   pin: string,
   updater: (prev: GameSession) => GameSession
 ): Promise<void> => {
-  let session = await getGameSession(pin);
+  const cleanPin = pin.trim().toUpperCase();
+  let session = await getGameSession(cleanPin);
   if (!session) return;
 
   session = updater(session);
@@ -254,14 +297,21 @@ export const updateGameSession = async (
   }
 
   if (typeof window !== 'undefined') {
-    localStorage.setItem(`quizrush_session_${pin}`, JSON.stringify(session));
-    const ch = getBroadcastChannel(pin);
+    localStorage.setItem(`quizrush_session_${cleanPin}`, JSON.stringify(session));
+    const ch = getBroadcastChannel(cleanPin);
     ch?.postMessage({ type: 'UPDATE', session });
+
+    // Sync to server API for other devices and incognito tabs
+    fetch(`/api/game/${cleanPin}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session }),
+    }).catch(() => {});
   }
 
   if (isFirebaseConfigured && db) {
     try {
-      await updateDoc(doc(db, 'games', pin), session as any);
+      await updateDoc(doc(db, 'games', cleanPin), session as any);
     } catch (err) {
       console.error('Error updating game in Firestore:', err);
     }
