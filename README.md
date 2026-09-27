@@ -210,7 +210,7 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
-NEXT_PUBLIC_APP_URL=https://your-quizrush.vercel.app
+NEXT_PUBLIC_APP_URL=https://quizrush-mu.vercel.app
 
 # Stripe Monetization ($4.99 per quiz after 1 free trial)
 STRIPE_SECRET_KEY=sk_live_...

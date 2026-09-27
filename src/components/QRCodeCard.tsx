@@ -15,7 +15,8 @@ export const QRCodeCard: React.FC<QRCodeCardProps> = ({ pin }) => {
     if (typeof window !== 'undefined') {
       return `${window.location.origin}/join?pin=${pin}`;
     }
-    return `https://quizrush.vercel.app/join?pin=${pin}`;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://quizrush-mu.vercel.app';
+    return `${appUrl}/join?pin=${pin}`;
   };
 
   const joinUrl = getJoinUrl();

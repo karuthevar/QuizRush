@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
       const pin = data.pin || 'XXXX';
       const quizTitle = data.quizTitle || 'Live Trivia Match';
       const sender = data.senderName || 'Your QuizRush Host';
-      const joinUrl = data.joinUrl || `https://quizrush.vercel.app/join?pin=${pin}`;
+      const baseAppUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://quizrush-mu.vercel.app';
+      const joinUrl = data.joinUrl || `${baseAppUrl}/join?pin=${pin}`;
 
       subject = `⚡ You're Invited to Play QuizRush: ${quizTitle} (PIN: ${pin})`;
       htmlContent = `
