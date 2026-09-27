@@ -16,7 +16,6 @@ import {
   authenticateWithPasskey,
   authenticateWithGoogleEmail,
   verifyAdminSession,
-  getAuthorizedAdminEmail,
 } from '@/lib/adminAuth';
 import { sounds } from '@/lib/soundEngine';
 
@@ -165,8 +164,9 @@ export default function SecretGatekeeperPage() {
           </form>
         </div>
 
-        <div className="mt-6 pt-4 border-t border-white/10 text-center text-[10px] text-white/30">
-          Authorized Admin: <span className="font-mono text-white/50">{getAuthorizedAdminEmail()}</span>
+        <div className="mt-6 pt-4 border-t border-white/10 text-center text-[10px] text-white/40 flex items-center justify-center space-x-1.5">
+          <ShieldAlert className="w-3.5 h-3.5 text-rush-yellow/60" />
+          <span>Encrypted Admin Portal • Authorized Personnel Only</span>
         </div>
       </div>
     </div>

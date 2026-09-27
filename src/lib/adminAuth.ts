@@ -12,12 +12,25 @@ export interface AdminSession {
   expiresAt: number;
 }
 
+export const getAuthorizedAdminEmails = (): string[] => {
+  const raw = process.env.NEXT_PUBLIC_ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL;
+  return raw
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+};
+
 export const getAuthorizedAdminEmail = (): string => {
-  return process.env.NEXT_PUBLIC_ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL;
+  const emails = getAuthorizedAdminEmails();
+  return emails[0] || DEFAULT_ADMIN_EMAIL;
 };
 
 export const getAdminPasskey = (): string => {
-  return process.env.ADMIN_SECRET_KEY || DEFAULT_ADMIN_PASSKEY;
+  return (
+    process.env.NEXT_PUBLIC_ADMIN_PASSKEY ||
+    process.env.ADMIN_SECRET_KEY ||
+    DEFAULT_ADMIN_PASSKEY
+  );
 };
 
 export const verifyAdminSession = (): boolean => {
@@ -65,8 +78,8 @@ export const clearAdminSession = (): void => {
 
 export const authenticateWithPasskey = (passkey: string): boolean => {
   const cleanKey = passkey.trim();
-  // Validates against configured or default admin passkey
-  if (cleanKey === DEFAULT_ADMIN_PASSKEY || cleanKey === process.env.NEXT_PUBLIC_ADMIN_PASSKEY) {
+  const validKey = getAdminPasskey();
+  if (cleanKey === validKey || cleanKey === DEFAULT_ADMIN_PASSKEY) {
     createAdminSession('admin-passkey-user');
     return true;
   }
@@ -74,8 +87,8 @@ export const authenticateWithPasskey = (passkey: string): boolean => {
 };
 
 export const authenticateWithGoogleEmail = (email: string): boolean => {
-  const authorized = getAuthorizedAdminEmail().toLowerCase();
-  if (email.trim().toLowerCase() === authorized) {
+  const authorizedEmails = getAuthorizedAdminEmails();
+  if (authorizedEmails.includes(email.trim().toLowerCase())) {
     createAdminSession(email);
     return true;
   }
