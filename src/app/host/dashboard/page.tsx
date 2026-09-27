@@ -13,10 +13,15 @@ import {
   Users,
   Layers,
   ArrowRight,
+  CreditCard,
+  Gift,
+  Coins,
 } from 'lucide-react';
 import { getAllQuizzes, deleteQuiz, createGameSession } from '@/lib/gameEngine';
-import { Quiz } from '@/lib/types';
+import { Quiz, HostBillingProfile } from '@/lib/types';
 import { subscribeToAuth, signInWithGoogle } from '@/lib/firebase';
+import { checkCanHost, consumeHostCredit, getBillingProfile } from '@/lib/billingEngine';
+import { PaywallModal } from '@/components/PaywallModal';
 
 export default function HostDashboardPage() {
   const router = useRouter();
@@ -25,12 +30,21 @@ export default function HostDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [hostingId, setHostingId] = useState<string | null>(null);
 
+  // Billing state
+  const [billing, setBilling] = useState<HostBillingProfile | null>(null);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+
   useEffect(() => {
     const unsub = subscribeToAuth((u) => {
       setUser(u);
     });
     return () => unsub();
   }, []);
+
+  const loadBilling = async (uid?: string) => {
+    const profile = await getBillingProfile(uid || user?.uid || 'guest-host');
+    setBilling(profile);
+  };
 
   const loadQuizzes = async () => {
     setLoading(true);
@@ -46,9 +60,23 @@ export default function HostDashboardPage() {
 
   useEffect(() => {
     loadQuizzes();
+    loadBilling(user?.uid);
+
+    const handleBillingChange = () => loadBilling(user?.uid);
+    window.addEventListener('quizrush_billing_change', handleBillingChange);
+    return () => window.removeEventListener('quizrush_billing_change', handleBillingChange);
   }, [user]);
 
   const handleStartHosting = async (quiz: Quiz) => {
+    const uid = user?.uid || 'guest-host';
+    const canHostStatus = await checkCanHost(uid);
+
+    if (!canHostStatus.canHost) {
+      // Out of trial & paid credits! Show $4.99 paywall
+      setPaywallOpen(true);
+      return;
+    }
+
     try {
       setHostingId(quiz.id);
       let hostId = user?.uid;
@@ -56,6 +84,11 @@ export default function HostDashboardPage() {
         const loggedInUser = await signInWithGoogle();
         hostId = loggedInUser?.uid || 'guest-host';
       }
+
+      // Deduct credit or free trial
+      await consumeHostCredit(hostId);
+      loadBilling(hostId);
+
       const pin = await createGameSession(quiz, hostId);
       router.push(`/host/lobby/${pin}`);
     } catch (err) {
@@ -73,8 +106,11 @@ export default function HostDashboardPage() {
     }
   };
 
+  const freeTrialsLeft = billing ? Math.max(0, billing.freeTrialsTotal - billing.freeTrialsUsed) : 1;
+  const paidCredits = billing?.paidCredits || 0;
+
   return (
-    <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
+    <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full animate-fade-in">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-8 border-b border-white/10 gap-4">
         <div>
@@ -88,13 +124,68 @@ export default function HostDashboardPage() {
           </p>
         </div>
 
-        <Link
-          href="/host/edit"
-          className="inline-flex items-center space-x-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-rush-purple to-rush-red hover:brightness-110 text-white font-black text-sm shadow-xl shadow-rush-purple/30 transition transform hover:scale-105 active:scale-95"
-        >
-          <PlusCircle className="w-5 h-5" />
-          <span>Create New Quiz</span>
-        </Link>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setPaywallOpen(true)}
+            className="flex items-center space-x-2 px-4 py-3 rounded-2xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/40 font-black text-xs uppercase tracking-wider transition transform hover:scale-105"
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>Buy Match Pass ($4.99)</span>
+          </button>
+
+          <Link
+            href="/host/edit"
+            className="inline-flex items-center space-x-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-rush-purple to-rush-red hover:brightness-110 text-white font-black text-xs uppercase tracking-wider shadow-xl shadow-rush-purple/30 transition transform hover:scale-105 active:scale-95"
+          >
+            <PlusCircle className="w-5 h-5" />
+            <span>Create Quiz</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* Monetization & Usage Banner */}
+      <div className="my-6 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-rush-navy/90 via-rush-dark to-rush-purple/30 border border-white/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center space-x-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-rush-red flex items-center justify-center text-white shrink-0 shadow-lg">
+            {freeTrialsLeft > 0 ? <Gift className="w-6 h-6" /> : <Coins className="w-6 h-6" />}
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <h3 className="text-base font-black text-white">Your Hosting Balance</h3>
+              {freeTrialsLeft > 0 ? (
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black uppercase">
+                  1 Free Trial Active
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[10px] font-black uppercase">
+                  Pay-As-You-Go ($4.99 / quiz)
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-white/60 mt-0.5">
+              {freeTrialsLeft > 0
+                ? 'Your first live multiplayer quiz is 100% free! Subsequent sessions are $4.99 per quiz.'
+                : `You currently have ${paidCredits} paid match pass(es) ready to use.`}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-3 self-end sm:self-center">
+          <div className="text-right">
+            <div className="text-xl font-black text-amber-300">
+              {freeTrialsLeft > 0 ? `${freeTrialsLeft} Trial Free` : `${paidCredits} Passes`}
+            </div>
+            <div className="text-[10px] font-bold text-white/50 uppercase tracking-wider">
+              {freeTrialsLeft > 0 ? 'Next match is on us' : '$4.99 each'}
+            </div>
+          </div>
+          <button
+            onClick={() => setPaywallOpen(true)}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-rush-red text-white text-xs font-black uppercase tracking-wider shadow-lg hover:brightness-110 transition"
+          >
+            Add Credits
+          </button>
+        </div>
       </div>
 
       {/* Stats Quick Bar */}
@@ -156,7 +247,7 @@ export default function HostDashboardPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {quizzes.map((quiz) => {
-            const isOfficial = quiz.id.startsWith('quiz-tech') || quiz.id.startsWith('quiz-world');
+            const isOfficial = quiz.id.startsWith('quiz-');
 
             return (
               <div
@@ -231,6 +322,18 @@ export default function HostDashboardPage() {
           })}
         </div>
       )}
+
+      {/* Paywall Modal */}
+      <PaywallModal
+        isOpen={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        userId={user?.uid || 'guest-host'}
+        userEmail={user?.email}
+        onUnlockSuccess={() => {
+          setPaywallOpen(false);
+          loadBilling(user?.uid);
+        }}
+      />
     </div>
   );
 }

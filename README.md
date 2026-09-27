@@ -1,6 +1,6 @@
 # ⚡ QuizRush
 
-> A high-energy, real-time multiplayer quiz platform inspired by Kahoot, engineered for seamless hosting on **Vercel** with Google OAuth, QR code & 4-character PIN joining, Admin History & Analytics, and Email dispatch.
+> A high-energy, real-time multiplayer quiz platform inspired by Kahoot, engineered for seamless hosting on **Vercel** with Google OAuth, QR code & 4-character PIN joining, Admin History & Analytics, Email dispatch, and **$4.99 Pay-Per-Quiz Monetization (after 1 free trial)**.
 
 ![QuizRush Banner](https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&auto=format&fit=crop&q=80)
 
@@ -15,8 +15,12 @@ flowchart TD
     subgraph Host ["👑 Quiz Organizer / Host"]
         H1[Google / Gmail OAuth Login] --> H2[Quiz Library & Authoring Studio]
         H2 --> H3[Configure Questions: Single 1-of-4 or Multi-Choice]
-        H3 --> H4[Click 'Host Live' & Generate 4-Char PIN]
-        H4 --> H5[Big Screen Lobby: Displays QR Code & PIN]
+        H3 --> H4[Click 'Host Live']
+        H4 --> H4A{Has Free Trial OR Paid Pass?}
+        H4A -- No --> H4B[Paywall Modal: $4.99 Stripe Checkout]
+        H4B --> H4C[Payment Confirmed: +1 Quiz Pass Added]
+        H4C --> H5
+        H4A -- Yes --> H5[Big Screen Lobby: Displays QR Code & 4-Char PIN]
         H5 --> H6[Start Live Match]
         H6 --> H7[Question & Countdown Screen]
         H7 --> H8[Live Bar Chart Results Breakdown]
@@ -37,11 +41,12 @@ flowchart TD
         P9 --> P10[Podium Finish & Medals]
     end
 
-    subgraph AdminEngine ["🛡️ Admin Dashboard & Email Dispatch"]
+    subgraph AdminEngine ["🛡️ Admin Dashboard, Monetization & Email Dispatch"]
         A1[Session History Logger] --> A2[Aggregated Analytics & Accuracy %]
         A2 --> A3[Detailed Question & Player Drilldowns]
         A3 --> A4[Export CSV Report]
         A3 --> A5[Send HTML Scorecard Email to Participants / Host]
+        A1 --> A6[Revenue Tracking: $4.99 per Quiz Pass Sold]
     end
 
     H5 -.->|Real-time Lobby Sync| P4
@@ -52,7 +57,28 @@ flowchart TD
 
 ---
 
-### 2. Live Interactive Game State Machine
+### 2. Monetization & Paywall Lifecycle Diagram
+
+```mermaid
+flowchart TD
+    Start[Host clicks 'Host Live'] --> CheckQuota{Free Trials Remaining > 0?}
+    CheckQuota -- Yes (1st Quiz) --> DeductTrial[Deduct 1 Free Trial Pass]
+    DeductTrial --> Launch[Generate PIN & Launch Game Arena]
+    
+    CheckQuota -- No (2nd Quiz+) --> CheckCredits{Paid Credits > 0?}
+    CheckCredits -- Yes --> DeductCredit[Deduct 1 Paid Quiz Credit]
+    DeductCredit --> Launch
+
+    CheckCredits -- No --> ShowPaywall[Display $4.99 Paywall Modal]
+    ShowPaywall --> Checkout[Stripe Checkout Session: $4.99]
+    Checkout --> Success[/host/checkout/success]
+    Success --> CreditAccount[Credit Account +1 Match Pass]
+    CreditAccount --> Launch
+```
+
+---
+
+### 3. Live Interactive Game State Machine
 
 ```mermaid
 stateDiagram-v2
@@ -93,21 +119,18 @@ stateDiagram-v2
 
 ---
 
-### 3. Admin Analytics & Email Dispatch Flow
+## 💰 Monetization: $4.99 / Quiz (After 1 Free Trial)
 
-```mermaid
-flowchart LR
-    A[Completed Match] --> B[recordGameHistory]
-    B --> C[(Firestore / LocalStorage)]
-    C --> D[Admin Dashboard /admin]
-    D --> E[Metrics: Games, Players, Avg Accuracy]
-    D --> F[Player & Question Drilldown Modal]
-    D --> G[Export CSV Data]
-    D --> H[Email API /api/send-email]
-    H --> I{Provider Configured?}
-    I -- Yes --> J[Resend / SMTP Delivery]
-    I -- No (Dev/Free) --> K[Simulated HTML Email Generator + Preview]
-```
+QuizRush implements a transparent, high-converting pay-per-quiz model:
+
+| Model Tier | Cost | Included Quota | Features |
+| :--- | :--- | :--- | :--- |
+| **Starter Trial** | **$0** (Free) | **1 Complete Match** | Up to 100 players, live audio, QR lobby, single & multi-choice, confetti podium |
+| **Single Match Pass** | **$4.99** / quiz | **1 Live Match** | Full multiplayer session pass, unlimited custom quizzes, session analytics, email scorecards |
+
+- **No monthly recurring subscriptions**: Hosts only pay when they actually organize a quiz match.
+- **Stripe Checkout Ready**: Seamless card, Apple Pay, and Google Pay support via Stripe.
+- **Zero-Friction Dev Mode**: Includes an instant test unlock button so you can test credit deduction and session unlocking locally without Stripe credentials.
 
 ---
 
@@ -131,6 +154,7 @@ flowchart LR
 
 ### 🛡️ Admin Dashboard, History & Email Center (`/admin`)
 - **Complete Session History**: View all previously hosted games, timestamps, PINs, participant counts, winners, and accuracy metrics.
+- **Revenue & Pass Sales Tracking**: Real-time display of total passes sold and estimated gross revenue ($4.99/ea).
 - **Per-Question Accuracy Drilldowns**: Inspect how players performed on each individual question with animated color progress bars.
 - **CSV Data Export**: 1-click download of session scorecards, rankings, and player data as `.csv` files.
 - **Email Service (`/api/send-email`)**:
@@ -176,25 +200,26 @@ QuizRush is designed to deploy to **Vercel** with zero hassle.
 2. Go to [Vercel Dashboard](https://vercel.com/dashboard) and click **"Add New Project"**.
 3. Import the `QuizRush` repository. Next.js will be detected automatically.
 
-### Step 2: (Optional) Connect Firebase for Cross-Device Real-Time Play
-QuizRush works out-of-the-box in local/multi-tab mode without configuration. For live multi-device internet gameplay with Google OAuth:
-1. Create a free project at [Firebase Console](https://console.firebase.google.com/) (100% free Spark Plan, no credit card required).
-2. Enable **Authentication** and add the **Google** sign-in provider.
-3. Enable **Cloud Firestore Database**.
-4. In your Vercel Project Settings under **Environment Variables**, add:
-   ```env
-   NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
-   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-   NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
-   NEXT_PUBLIC_APP_URL=https://your-quizrush.vercel.app
+### Step 2: (Optional) Connect Production Keys
+In your Vercel Project Settings under **Environment Variables**, add:
+```env
+# Firebase (Google OAuth & Real-Time Sync) - Spark Plan 100% Free
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+NEXT_PUBLIC_APP_URL=https://your-quizrush.vercel.app
 
-   # Optional for production email dispatch (https://resend.com):
-   RESEND_API_KEY=re_xxxxxxxxxxxxxx
-   ```
-5. Click **Deploy**!
+# Stripe Monetization ($4.99 per quiz after 1 free trial)
+STRIPE_SECRET_KEY=sk_live_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
+
+# Resend Email Dispatch (Post-game scorecards & invites)
+RESEND_API_KEY=re_xxxxxxxxxxxxxx
+```
+4. Click **Deploy**!
 
 ---
 

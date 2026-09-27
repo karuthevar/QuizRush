@@ -20,16 +20,25 @@ import {
   ArrowRight,
   ExternalLink,
   X,
+  CreditCard,
+  DollarSign,
+  Coins,
+  RefreshCw,
+  Gift,
 } from 'lucide-react';
 import { getGameHistory, deleteHistoryRecord } from '@/lib/gameEngine';
-import { GameHistory } from '@/lib/types';
+import { GameHistory, HostBillingProfile } from '@/lib/types';
 import { subscribeToAuth } from '@/lib/firebase';
 import { sounds } from '@/lib/soundEngine';
+import { getBillingProfile, addHostCredits, resetBillingDemo } from '@/lib/billingEngine';
+import { PaywallModal } from '@/components/PaywallModal';
 
 export default function AdminDashboardPage() {
   const [history, setHistory] = useState<GameHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [billing, setBilling] = useState<HostBillingProfile | null>(null);
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   // Modals state
   const [selectedSession, setSelectedSession] = useState<GameHistory | null>(null);
@@ -48,6 +57,11 @@ export default function AdminDashboardPage() {
     return () => unsub();
   }, []);
 
+  const loadBilling = async (uid?: string) => {
+    const profile = await getBillingProfile(uid || user?.uid || 'guest-host');
+    setBilling(profile);
+  };
+
   const loadHistory = async () => {
     setLoading(true);
     try {
@@ -62,7 +76,12 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     loadHistory();
-  }, []);
+    loadBilling(user?.uid);
+
+    const handleBillingChange = () => loadBilling(user?.uid);
+    window.addEventListener('quizrush_billing_change', handleBillingChange);
+    return () => window.removeEventListener('quizrush_billing_change', handleBillingChange);
+  }, [user]);
 
   const handleDeleteRecord = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -177,6 +196,21 @@ export default function AdminDashboardPage() {
     document.body.removeChild(link);
   };
 
+  const handleSimulatePurchase = async () => {
+    sounds.playCorrect();
+    await addHostCredits(user?.uid || 'guest-host', 1, {
+      amount: 499,
+      status: 'simulated',
+    });
+    loadBilling(user?.uid);
+  };
+
+  const handleResetTrials = async () => {
+    sounds.playPop();
+    await resetBillingDemo(user?.uid || 'guest-host');
+    loadBilling(user?.uid);
+  };
+
   // Aggregated Stats
   const totalGamesHosted = history.length;
   const totalPlayersEngaged = history.reduce((sum, h) => sum + (h.totalPlayers || 0), 0);
@@ -191,6 +225,9 @@ export default function AdminDashboardPage() {
         )
       : 85;
 
+  const totalPassesSold = (billing?.paymentHistory || []).length;
+  const estimatedRevenue = ((billing?.paymentHistory || []).reduce((acc, tx) => acc + (tx.amount || 499), 0) / 100).toFixed(2);
+
   return (
     <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full animate-fade-in">
       {/* Top Header */}
@@ -198,22 +235,31 @@ export default function AdminDashboardPage() {
         <div>
           <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-black uppercase tracking-wider mb-2">
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Admin & Analytics Hub</span>
+            <span>Admin, Monetization & Analytics Hub</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-white">Session History & Email Center</h1>
+          <h1 className="text-3xl sm:text-4xl font-black text-white">Session History & Revenue Center</h1>
           <p className="text-white/60 text-sm mt-1">
-            Review past games, drill down into player results, dispatch email scorecards, and export reports
+            Review past games, drill down into player results, dispatch email scorecards, and track $4.99 quiz passes
           </p>
         </div>
 
         <div className="flex items-center space-x-3">
           <button
-            onClick={handleOpenInviteModal}
-            className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs uppercase tracking-wider transition"
+            onClick={() => setPaywallOpen(true)}
+            className="flex items-center space-x-1.5 px-4 py-2.5 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/40 font-bold text-xs uppercase tracking-wider transition"
           >
-            <Mail className="w-4 h-4 text-amber-400" />
-            <span>Send Quiz Invites</span>
+            <CreditCard className="w-4 h-4" />
+            <span>Buy Pass ($4.99)</span>
           </button>
+
+          <button
+            onClick={handleOpenInviteModal}
+            className="flex items-center space-x-1.5 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs uppercase tracking-wider transition"
+          >
+            <Mail className="w-4 h-4 text-cyan-300" />
+            <span>Send Invites</span>
+          </button>
+
           <Link
             href="/host/dashboard"
             className="flex items-center space-x-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-rush-purple to-rush-red hover:brightness-110 text-white font-black text-xs uppercase tracking-wider shadow-lg transition"
@@ -225,7 +271,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* KPI Overview Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 my-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-8">
         <div className="glass-panel p-5 rounded-2xl border border-white/10 flex items-center space-x-4">
           <div className="w-12 h-12 rounded-xl bg-rush-blue/20 border border-rush-blue/40 flex items-center justify-center text-rush-blue">
             <History className="w-6 h-6" />
@@ -248,22 +294,56 @@ export default function AdminDashboardPage() {
 
         <div className="glass-panel p-5 rounded-2xl border border-white/10 flex items-center space-x-4">
           <div className="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
-            <BarChart3 className="w-6 h-6" />
+            <DollarSign className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-2xl font-black text-white">{avgAccuracy}%</div>
-            <div className="text-xs font-bold uppercase tracking-wider text-white/50">Avg Answer Accuracy</div>
+            <div className="text-2xl font-black text-white">${estimatedRevenue}</div>
+            <div className="text-xs font-bold uppercase tracking-wider text-white/50">
+              Pass Revenue ($4.99/ea)
+            </div>
           </div>
         </div>
 
         <div className="glass-panel p-5 rounded-2xl border border-white/10 flex items-center space-x-4">
           <div className="w-12 h-12 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
-            <Mail className="w-6 h-6" />
+            <Coins className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-2xl font-black text-white">Active</div>
-            <div className="text-xs font-bold uppercase tracking-wider text-white/50">Email Service Ready</div>
+            <div className="text-2xl font-black text-white">{billing?.paidCredits || 0} Available</div>
+            <div className="text-xs font-bold uppercase tracking-wider text-white/50">Host Match Credits</div>
           </div>
+        </div>
+      </div>
+
+      {/* Monetization Tester Box */}
+      <div className="glass-card p-5 rounded-2xl border border-white/10 mb-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300">
+            <Gift className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-sm font-black text-white">Monetization Testing Controls</div>
+            <div className="text-xs text-white/60">
+              Free trial quota: {billing?.freeTrialsUsed || 0} of {billing?.freeTrialsTotal || 1} used.
+              Test the $4.99 paywall easily:
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleSimulatePurchase}
+            className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition"
+          >
+            +1 Test Match Pass ($4.99)
+          </button>
+          <button
+            onClick={handleResetTrials}
+            className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-xs font-bold transition flex items-center space-x-1"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Reset Trial</span>
+          </button>
         </div>
       </div>
 
@@ -404,9 +484,7 @@ export default function AdminDashboardPage() {
         )}
       </div>
 
-      {/* ========================================================= */}
-      {/* 1. DRILLDOWN REPORT MODAL                                 */}
-      {/* ========================================================= */}
+      {/* Drilldown Report Modal */}
       {selectedSession && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
           <div className="glass-card max-w-2xl w-full rounded-3xl border border-white/20 shadow-2xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
@@ -513,9 +591,7 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* 2. SEND EMAIL MODAL                                       */}
-      {/* ========================================================= */}
+      {/* Send Email Modal */}
       {emailModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
           <div className="glass-card max-w-lg w-full rounded-3xl border border-white/20 shadow-2xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
@@ -646,6 +722,18 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Paywall Modal */}
+      <PaywallModal
+        isOpen={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        userId={user?.uid || 'guest-host'}
+        userEmail={user?.email}
+        onUnlockSuccess={() => {
+          setPaywallOpen(false);
+          loadBilling(user?.uid);
+        }}
+      />
     </div>
   );
 }

@@ -114,3 +114,22 @@ export interface GameHistory {
   questionStats: QuestionStat[];
   players: Player[];
 }
+
+export interface PaymentTransaction {
+  id: string;
+  amount: number; // in cents, e.g., 499 for $4.99
+  currency: string;
+  date: number;
+  status: 'paid' | 'simulated';
+  creditsAdded: number;
+  receiptUrl?: string;
+}
+
+export interface HostBillingProfile {
+  userId: string;
+  freeTrialsTotal: number; // 1 free trial
+  freeTrialsUsed: number;
+  paidCredits: number; // credits bought at $4.99 each
+  totalQuizzesHosted: number;
+  paymentHistory: PaymentTransaction[];
+}
