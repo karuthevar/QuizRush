@@ -25,12 +25,17 @@ import {
   Coins,
   RefreshCw,
   Gift,
+  Home,
+  LogOut,
+  HelpCircle,
+  Play,
 } from 'lucide-react';
 import { getGameHistory, deleteHistoryRecord } from '@/lib/gameEngine';
 import { GameHistory, HostBillingProfile } from '@/lib/types';
 import { subscribeToAuth } from '@/lib/firebase';
 import { sounds } from '@/lib/soundEngine';
 import { getBillingProfile, addHostCredits, resetBillingDemo } from '@/lib/billingEngine';
+import { verifyAdminSession, clearAdminSession } from '@/lib/adminAuth';
 import { PaywallModal } from '@/components/PaywallModal';
 
 export default function AdminDashboardPage() {
@@ -51,6 +56,27 @@ export default function AdminDashboardPage() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailStatus, setEmailStatus] = useState<{ success: boolean; message: string; previewHtml?: string } | null>(null);
   const [showEmailPreview, setShowEmailPreview] = useState(false);
+
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    const isAuthed = verifyAdminSession();
+    setIsAdmin(isAuthed);
+    setCheckingAuth(false);
+
+    const handleAuthChange = () => {
+      setIsAdmin(verifyAdminSession());
+    };
+    window.addEventListener('quizrush_admin_auth_change', handleAuthChange);
+    return () => window.removeEventListener('quizrush_admin_auth_change', handleAuthChange);
+  }, []);
+
+  const handleAdminLogout = () => {
+    sounds.playPop();
+    clearAdminSession();
+    setIsAdmin(false);
+  };
 
   useEffect(() => {
     const unsub = subscribeToAuth((u) => setUser(u));
@@ -228,6 +254,52 @@ export default function AdminDashboardPage() {
   const totalPassesSold = (billing?.paymentHistory || []).length;
   const estimatedRevenue = ((billing?.paymentHistory || []).reduce((acc, tx) => acc + (tx.amount || 499), 0) / 100).toFixed(2);
 
+  if (checkingAuth) {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-4 border-white/20 border-t-rush-yellow rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-[70vh] text-center animate-fade-in">
+        <div className="max-w-md w-full glass-card p-8 sm:p-10 rounded-3xl border border-white/10 shadow-2xl relative overflow-hidden">
+          <div className="w-20 h-20 mx-auto rounded-3xl bg-rush-red/10 border border-rush-red/30 flex items-center justify-center mb-6">
+            <HelpCircle className="w-10 h-10 text-rush-red" />
+          </div>
+
+          <h1 className="text-6xl font-black bg-gradient-to-r from-rush-red via-rush-yellow to-amber-300 bg-clip-text text-transparent mb-2">
+            404
+          </h1>
+          <h2 className="text-2xl font-black text-white mb-3">Page Not Found</h2>
+          <p className="text-white/60 text-sm mb-8">
+            The page you are looking for doesn't exist, was moved, or has been relocated.
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              href="/"
+              className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-sm transition"
+            >
+              <Home className="w-4 h-4" />
+              <span>Return Home</span>
+            </Link>
+
+            <Link
+              href="/join"
+              className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-rush-purple to-rush-blue hover:brightness-110 text-white font-bold text-sm shadow-lg transition"
+            >
+              <Play className="w-4 h-4 fill-current" />
+              <span>Join a Game</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full animate-fade-in">
       {/* Top Header */}
@@ -258,6 +330,15 @@ export default function AdminDashboardPage() {
           >
             <Mail className="w-4 h-4 text-cyan-300" />
             <span>Send Invites</span>
+          </button>
+
+          <button
+            onClick={handleAdminLogout}
+            className="flex items-center space-x-1.5 px-3.5 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 font-bold text-xs uppercase tracking-wider transition"
+            title="Lock admin dashboard and clear session"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline">Exit Admin</span>
           </button>
 
           <Link

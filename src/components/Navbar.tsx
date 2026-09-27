@@ -12,7 +12,6 @@ import {
   LayoutDashboard,
   Volume2,
   VolumeX,
-  ShieldCheck,
   Gift,
   Coins,
 } from 'lucide-react';
@@ -131,15 +130,6 @@ export const Navbar: React.FC = () => {
           >
             <Play className="w-3.5 h-3.5 fill-current" />
             <span>Join PIN</span>
-          </Link>
-
-          <Link
-            href="/admin"
-            className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-xs transition"
-            title="Admin & History Dashboard"
-          >
-            <ShieldCheck className="w-4 h-4" />
-            <span className="hidden md:inline">Admin</span>
           </Link>
 
           {user ? (
