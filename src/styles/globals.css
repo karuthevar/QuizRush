@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0d0a21;
+  --foreground: #ffffff;
+}
+
+body {
+  color: var(--foreground);
+  background: radial-gradient(circle at 50% 20%, #20134b 0%, #0d0a21 100%);
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  overflow-x: hidden;
+}
+
+/* Kahoot-like high contrast shape buttons */
+.btn-kahoot-red {
+  background-color: #e21b3c;
+  box-shadow: 0 6px 0 #a9122a;
+}
+.btn-kahoot-red:hover {
+  background-color: #eb294a;
+}
+.btn-kahoot-red:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #a9122a;
+}
+
+.btn-kahoot-blue {
+  background-color: #1368ce;
+  box-shadow: 0 6px 0 #0c4fa3;
+}
+.btn-kahoot-blue:hover {
+  background-color: #1a76e6;
+}
+.btn-kahoot-blue:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #0c4fa3;
+}
+
+.btn-kahoot-yellow {
+  background-color: #ffa602;
+  box-shadow: 0 6px 0 #c77e00;
+}
+.btn-kahoot-yellow:hover {
+  background-color: #ffb424;
+}
+.btn-kahoot-yellow:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #c77e00;
+}
+
+.btn-kahoot-green {
+  background-color: #26890c;
+  box-shadow: 0 6px 0 #1b6607;
+}
+.btn-kahoot-green:hover {
+  background-color: #2f9e10;
+}
+.btn-kahoot-green:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #1b6607;
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.glass-card {
+  background: rgba(30, 20, 60, 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0d0a21;
+}
+::-webkit-scrollbar-thumb {
+  background: #3c2472;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #5b35aa;
+}
