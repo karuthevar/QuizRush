@@ -10,8 +10,9 @@ import {
   where,
   getDocs,
   deleteDoc,
+  orderBy,
 } from 'firebase/firestore';
-import { GameSession, GameStatus, Player, PlayerAnswer, Quiz } from './types';
+import { GameSession, GameStatus, Player, PlayerAnswer, Quiz, GameHistory, QuestionStat } from './types';
 import { SAMPLE_QUIZZES } from './sampleQuizzes';
 
 const PIN_CHARACTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excludes 0, O, 1, I
@@ -247,6 +248,11 @@ export const updateGameSession = async (
   session = updater(session);
   session.updatedAt = Date.now();
 
+  // If game reaches podium or ended, automatically log to history
+  if (session.status === 'podium' || session.status === 'ended') {
+    recordGameHistory(session).catch(console.error);
+  }
+
   if (typeof window !== 'undefined') {
     localStorage.setItem(`quizrush_session_${pin}`, JSON.stringify(session));
     const ch = getBroadcastChannel(pin);
@@ -373,4 +379,183 @@ export const submitPlayerAnswer = async (
 
 export const getSortedLeaderboard = (players: Record<string, Player> = {}): Player[] => {
   return Object.values(players).sort((a, b) => b.score - a.score);
+};
+
+// ==========================================
+// GAME HISTORY & ADMIN LOGGING
+// ==========================================
+
+const SEED_SAMPLE_HISTORY: GameHistory[] = [
+  {
+    id: 'hist_sample_1',
+    pin: 'K8R4',
+    quizId: 'quiz-world-capitals',
+    quizTitle: '🏛️ World Capitals Showdown',
+    hostId: 'official-quizrush',
+    hostEmail: 'organizer@demo.com',
+    playedAt: Date.now() - 3600000 * 24 * 2, // 2 days ago
+    totalPlayers: 4,
+    totalQuestions: 5,
+    topPlayers: [
+      { rank: 1, nickname: 'AtlasPro', score: 4850, avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=AtlasPro' },
+      { rank: 2, nickname: 'Globetrotter', score: 4210, avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Globetrotter' },
+      { rank: 3, nickname: 'Voyager', score: 3600, avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Voyager' },
+    ],
+    questionStats: [
+      { questionId: 'cap-1', questionTitle: 'What is the capital of Australia?', correctCount: 4, totalAnswered: 4, accuracy: 100 },
+      { questionId: 'cap-2', questionTitle: 'What is the national capital of Canada?', correctCount: 3, totalAnswered: 4, accuracy: 75 },
+      { questionId: 'cap-3', questionTitle: 'Official capitals of South Africa', correctCount: 2, totalAnswered: 4, accuracy: 50 },
+      { questionId: 'cap-4', questionTitle: 'What is the capital of Turkey?', correctCount: 3, totalAnswered: 4, accuracy: 75 },
+      { questionId: 'cap-5', questionTitle: 'Capitals in South America', correctCount: 3, totalAnswered: 4, accuracy: 75 },
+    ],
+    players: [],
+  },
+  {
+    id: 'hist_sample_2',
+    pin: 'X9M2',
+    quizId: 'quiz-tech-innovators',
+    quizTitle: '⚡ Ultimate Tech & Coding Challenge',
+    hostId: 'official-quizrush',
+    hostEmail: 'organizer@demo.com',
+    playedAt: Date.now() - 3600000 * 12, // 12 hours ago
+    totalPlayers: 6,
+    totalQuestions: 5,
+    topPlayers: [
+      { rank: 1, nickname: 'ByteWizard', score: 5320, avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=ByteWizard' },
+      { rank: 2, nickname: 'FullStackDev', score: 4940, avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=FullStackDev' },
+      { rank: 3, nickname: 'CyberNinja', score: 4120, avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=CyberNinja' },
+    ],
+    questionStats: [
+      { questionId: 'tech-1', questionTitle: 'Created by Brendan Eich in 1995?', correctCount: 6, totalAnswered: 6, accuracy: 100 },
+      { questionId: 'tech-2', questionTitle: 'JavaScript frontend frameworks/libraries', correctCount: 5, totalAnswered: 6, accuracy: 83 },
+      { questionId: 'tech-3', questionTitle: 'What does CSS stand for?', correctCount: 6, totalAnswered: 6, accuracy: 100 },
+      { questionId: 'tech-4', questionTitle: 'Port 443 protocol?', correctCount: 5, totalAnswered: 6, accuracy: 83 },
+      { questionId: 'tech-5', questionTitle: 'Hyperscale cloud service providers', correctCount: 4, totalAnswered: 6, accuracy: 67 },
+    ],
+    players: [],
+  },
+];
+
+export const recordGameHistory = async (session: GameSession): Promise<void> => {
+  const playersList = Object.values(session.players || {});
+  const sortedPlayers = [...playersList].sort((a, b) => b.score - a.score);
+
+  const topPlayers = sortedPlayers.slice(0, 3).map((p, idx) => ({
+    rank: idx + 1,
+    nickname: p.nickname,
+    score: p.score,
+    avatar: p.avatar,
+  }));
+
+  const questionStats: QuestionStat[] = session.quiz.questions.map((q) => {
+    let correctCount = 0;
+    let totalAnswered = 0;
+
+    playersList.forEach((p) => {
+      const ans = p.answers?.[q.id];
+      if (ans) {
+        totalAnswered++;
+        if (ans.isCorrect) correctCount++;
+      }
+    });
+
+    const accuracy = totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) : 0;
+    return {
+      questionId: q.id,
+      questionTitle: q.title,
+      correctCount,
+      totalAnswered,
+      accuracy,
+    };
+  });
+
+  const historyRecord: GameHistory = {
+    id: `hist_${session.pin}_${Date.now()}`,
+    pin: session.pin,
+    quizId: session.quizId,
+    quizTitle: session.quiz.title,
+    hostId: session.hostId,
+    playedAt: Date.now(),
+    totalPlayers: playersList.length,
+    totalQuestions: session.quiz.questions.length,
+    topPlayers,
+    questionStats,
+    players: playersList,
+  };
+
+  // Save to local storage
+  if (typeof window !== 'undefined') {
+    const raw = localStorage.getItem('quizrush_game_history');
+    let list: GameHistory[] = raw ? JSON.parse(raw) : [];
+    // Avoid duplicate logs for the same session pin
+    list = list.filter((h) => h.pin !== session.pin);
+    list.unshift(historyRecord);
+    localStorage.setItem('quizrush_game_history', JSON.stringify(list));
+  }
+
+  // Save to Firestore if available
+  if (isFirebaseConfigured && db) {
+    try {
+      await setDoc(doc(db, 'history', historyRecord.id), historyRecord);
+    } catch (err) {
+      console.warn('Failed to save history to Firestore:', err);
+    }
+  }
+};
+
+export const getGameHistory = async (): Promise<GameHistory[]> => {
+  let localList: GameHistory[] = [];
+
+  if (typeof window !== 'undefined') {
+    const raw = localStorage.getItem('quizrush_game_history');
+    if (raw) {
+      try {
+        localList = JSON.parse(raw);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+
+  if (isFirebaseConfigured && db) {
+    try {
+      const snap = await getDocs(query(collection(db, 'history'), orderBy('playedAt', 'desc')));
+      const remoteList: GameHistory[] = [];
+      snap.forEach((d) => remoteList.push(d.data() as GameHistory));
+      if (remoteList.length > 0) {
+        return remoteList;
+      }
+    } catch (e) {
+      console.warn('Failed to read history from Firestore:', e);
+    }
+  }
+
+  if (localList.length === 0) {
+    // Seed with realistic demo history so admin dashboard has immediate data
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('quizrush_game_history', JSON.stringify(SEED_SAMPLE_HISTORY));
+    }
+    return SEED_SAMPLE_HISTORY;
+  }
+
+  return localList;
+};
+
+export const deleteHistoryRecord = async (id: string): Promise<void> => {
+  if (typeof window !== 'undefined') {
+    const raw = localStorage.getItem('quizrush_game_history');
+    if (raw) {
+      let list: GameHistory[] = JSON.parse(raw);
+      list = list.filter((h) => h.id !== id);
+      localStorage.setItem('quizrush_game_history', JSON.stringify(list));
+    }
+  }
+
+  if (isFirebaseConfigured && db) {
+    try {
+      await deleteDoc(doc(db, 'history', id));
+    } catch (e) {
+      console.error(e);
+    }
+  }
 };

@@ -86,3 +86,31 @@ export interface UserProfile {
   email: string;
   photoURL?: string;
 }
+
+export interface QuestionStat {
+  questionId: string;
+  questionTitle: string;
+  correctCount: number;
+  totalAnswered: number;
+  accuracy: number;
+}
+
+export interface GameHistory {
+  id: string;
+  pin: string;
+  quizId: string;
+  quizTitle: string;
+  hostId: string;
+  hostEmail?: string;
+  playedAt: number;
+  totalPlayers: number;
+  totalQuestions: number;
+  topPlayers: {
+    rank: number;
+    nickname: string;
+    score: number;
+    avatar: string;
+  }[];
+  questionStats: QuestionStat[];
+  players: Player[];
+}

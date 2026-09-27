@@ -3,8 +3,18 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Zap, Play, PlusCircle, LogIn, LogOut, LayoutDashboard, Volume2, VolumeX } from 'lucide-react';
-import { signInWithGoogle, signOutUser, subscribeToAuth, isFirebaseConfigured } from '@/lib/firebase';
+import {
+  Zap,
+  Play,
+  PlusCircle,
+  LogIn,
+  LogOut,
+  LayoutDashboard,
+  Volume2,
+  VolumeX,
+  ShieldCheck,
+} from 'lucide-react';
+import { signInWithGoogle, signOutUser, subscribeToAuth } from '@/lib/firebase';
 import { sounds } from '@/lib/soundEngine';
 
 export const Navbar: React.FC = () => {
@@ -71,10 +81,19 @@ export const Navbar: React.FC = () => {
 
           <Link
             href="/join"
-            className="hidden sm:inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-rush-blue/20 hover:bg-rush-blue/40 text-blue-300 border border-rush-blue/40 font-bold text-sm transition"
+            className="hidden sm:inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-rush-blue/20 hover:bg-rush-blue/40 text-blue-300 border border-rush-blue/40 font-bold text-sm transition"
           >
             <Play className="w-4 h-4 fill-current" />
-            <span>Join with PIN</span>
+            <span>Join PIN</span>
+          </Link>
+
+          <Link
+            href="/admin"
+            className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-sm transition"
+            title="Admin & History Dashboard"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span className="hidden md:inline">Admin & History</span>
           </Link>
 
           {user ? (
@@ -92,7 +111,7 @@ export const Navbar: React.FC = () => {
                 className="flex items-center space-x-1.5 px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-rush-purple to-rush-red hover:brightness-110 text-white font-bold text-sm shadow-md transition"
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>Create Quiz</span>
+                <span>Create</span>
               </Link>
 
               {/* User Avatar & Logout */}
@@ -121,7 +140,7 @@ export const Navbar: React.FC = () => {
               className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-gradient-to-r from-rush-red to-rush-yellow text-white font-black text-sm shadow-lg shadow-rush-red/30 hover:brightness-110 active:scale-95 transition"
             >
               <LogIn className="w-4 h-4" />
-              <span>{loading ? 'Signing in...' : 'Organizer Sign-In'}</span>
+              <span>{loading ? '...' : 'Sign-In'}</span>
             </button>
           )}
         </div>
