@@ -76,13 +76,39 @@ export const clearAdminSession = (): void => {
   window.dispatchEvent(new Event('quizrush_admin_auth_change'));
 };
 
-export const authenticateWithPasskey = (passkey: string): boolean => {
+export const authenticateWithPasskey = async (passkey: string): Promise<boolean> => {
   const cleanKey = passkey.trim();
+  if (!cleanKey) return false;
+
   const validKey = getAdminPasskey();
-  if (cleanKey === validKey || cleanKey === DEFAULT_ADMIN_PASSKEY) {
+  // 1. Direct local matching (case-insensitive fallback for DEFAULT_ADMIN_PASSKEY)
+  if (
+    cleanKey === validKey ||
+    cleanKey === DEFAULT_ADMIN_PASSKEY ||
+    cleanKey.toLowerCase() === DEFAULT_ADMIN_PASSKEY.toLowerCase()
+  ) {
     createAdminSession('admin-passkey-user');
     return true;
   }
+
+  // 2. Server-side API verification (can read secret ADMIN_SECRET_KEY from Vercel)
+  try {
+    const res = await fetch('/api/admin/verify-passkey', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passkey: cleanKey }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        createAdminSession('admin-passkey-user');
+        return true;
+      }
+    }
+  } catch (err) {
+    console.error('Passkey verification API error:', err);
+  }
+
   return false;
 };
 

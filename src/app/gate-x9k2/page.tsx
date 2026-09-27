@@ -10,6 +10,8 @@ import {
   CheckCircle2,
   Lock,
   ArrowRight,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { signInWithGoogle, subscribeToAuth } from '@/lib/firebase';
 import {
@@ -22,6 +24,7 @@ import { sounds } from '@/lib/soundEngine';
 export default function SecretGatekeeperPage() {
   const router = useRouter();
   const [passkey, setPasskey] = useState('');
+  const [showPasskey, setShowPasskey] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -43,22 +46,31 @@ export default function SecretGatekeeperPage() {
     return () => unsub();
   }, [router]);
 
-  const handlePasskeySubmit = (e: React.FormEvent) => {
+  const handlePasskeySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (!passkey.trim()) {
+    const clean = passkey.trim();
+    if (!clean) {
       setError('Please provide the master passkey.');
       return;
     }
 
-    const success = authenticateWithPasskey(passkey);
-    if (success) {
-      sounds.playCorrect();
-      router.push('/admin');
-    } else {
+    setLoading(true);
+    try {
+      const success = await authenticateWithPasskey(clean);
+      if (success) {
+        sounds.playCorrect();
+        router.push('/admin');
+      } else {
+        sounds.playWrong();
+        setError('Invalid passkey. Access denied.');
+      }
+    } catch (err) {
       sounds.playWrong();
-      setError('Invalid passkey. Access denied.');
+      setError('Authentication failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -144,21 +156,45 @@ export default function SecretGatekeeperPage() {
               </label>
               <div className="relative">
                 <input
-                  type="password"
+                  type={showPasskey ? 'text' : 'password'}
                   value={passkey}
                   onChange={(e) => setPasskey(e.target.value)}
                   placeholder="Enter administrator passkey..."
-                  className="w-full text-sm font-bold bg-rush-navy/90 border border-white/20 focus:border-amber-400 focus:outline-none rounded-xl px-4 py-3 text-white placeholder:text-white/30 transition pl-10"
+                  className="w-full text-sm font-bold bg-rush-navy/90 border border-white/20 focus:border-amber-400 focus:outline-none rounded-xl px-4 py-3 text-white placeholder:text-white/30 transition pl-10 pr-10"
                 />
                 <KeyRound className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
+                <button
+                  type="button"
+                  onClick={() => setShowPasskey(!showPasskey)}
+                  className="absolute right-3.5 top-3.5 text-white/40 hover:text-white transition"
+                  title={showPasskey ? 'Hide passkey' : 'Show passkey'}
+                >
+                  {showPasskey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <div className="flex justify-between items-center mt-2 px-1 text-[11px]">
+                <span className="text-white/50">
+                  Default: <code className="text-amber-300 font-mono select-all">QuizRush@Admin2026!</code>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPasskey('QuizRush@Admin2026!');
+                    setError(null);
+                  }}
+                  className="text-amber-400 hover:text-amber-300 font-bold underline transition"
+                >
+                  Auto-fill
+                </button>
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rush-purple to-rush-red hover:brightness-110 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-rush-purple/30 flex items-center justify-center space-x-2 transition active:scale-95"
+              disabled={loading}
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rush-purple to-rush-red hover:brightness-110 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-rush-purple/30 flex items-center justify-center space-x-2 transition active:scale-95 disabled:opacity-50"
             >
-              <span>Unlock Admin Console</span>
+              <span>{loading ? 'Verifying passkey...' : 'Unlock Admin Console'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
