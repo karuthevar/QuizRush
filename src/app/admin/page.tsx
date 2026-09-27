@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   ShieldCheck,
   History,
@@ -57,8 +58,10 @@ export default function AdminDashboardPage() {
   const [emailStatus, setEmailStatus] = useState<{ success: boolean; message: string; previewHtml?: string } | null>(null);
   const [showEmailPreview, setShowEmailPreview] = useState(false);
 
+  const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
     const isAuthed = verifyAdminSession();
@@ -74,8 +77,9 @@ export default function AdminDashboardPage() {
 
   const handleAdminLogout = () => {
     sounds.playPop();
+    setIsExiting(true);
     clearAdminSession();
-    setIsAdmin(false);
+    router.replace('/');
   };
 
   useEffect(() => {
@@ -253,6 +257,15 @@ export default function AdminDashboardPage() {
 
   const totalPassesSold = (billing?.paymentHistory || []).length;
   const estimatedRevenue = ((billing?.paymentHistory || []).reduce((acc, tx) => acc + (tx.amount || 499), 0) / 100).toFixed(2);
+
+  if (isExiting) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] space-y-4 animate-fade-in">
+        <div className="w-10 h-10 border-4 border-white/20 border-t-rush-red rounded-full animate-spin" />
+        <p className="text-white/80 font-bold text-sm">Exiting admin session & returning to home...</p>
+      </div>
+    );
+  }
 
   if (checkingAuth) {
     return (
