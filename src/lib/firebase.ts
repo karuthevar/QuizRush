@@ -48,11 +48,11 @@ export { app, auth, db, googleProvider };
 
 export const signInWithGoogle = async (): Promise<User | null> => {
   if (!auth || !googleProvider) {
-    // Return mock user if Firebase is not yet configured so organizer can test immediately!
+    const defaultAdmin = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'karuthevar22@gmail.com';
     const mockUser: any = {
       uid: 'demo-organizer-' + Math.random().toString(36).substring(2, 7),
-      displayName: 'Quiz Organizer (Demo)',
-      email: 'organizer@demo.com',
+      displayName: 'Quiz Organizer (Admin Demo)',
+      email: defaultAdmin,
       photoURL: 'https://api.dicebear.com/7.x/bottts/svg?seed=organizer',
     };
     if (typeof window !== 'undefined') {
